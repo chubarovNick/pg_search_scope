@@ -32,8 +32,8 @@ module PgSearchScope
     # * <tt>:select_rank</tt> - Include rank in select statement, as {scope_name}_rank
     #
     # * <tt>:language</tt> - Search language, e.g. 'simple' (without magic), 'english'
-    # * <tt>:rank_function</tt> - Ranking function. Valid values  are  'ts_rank' and 'ts_rank_cd'
-    # * <tt>:rank_columns</tt> - If you want to sort table by rank only by specific fields - input column names  here
+    # * <tt>:rank_function</tt> - Ranking function. Valid values are 'ts_rank' and 'ts_rank_cd'
+    # * <tt>:rank_columns</tt> - If you want to sort table by rank only by specific fields - input column names here
     #
     # == Usage
     #
@@ -52,17 +52,13 @@ module PgSearchScope
 
       scope_name = scope_options[:as] || "search_by_#{column_names.join('_and_')}"
 
-      scope scope_name, Proc.new { |search_string, options|
+      scope scope_name, proc { |search_string, options|
         options = scope_options.merge(options || {})
         search_string ||= ''
 
-        terms = search_string.scan(/([\p{Lu}\p{Ll}\d][\p{Lu}\p{Ll}\d\.'@]*)/u).map {|s,_| s.gsub /'/, "''"}
-
+        terms = search_string.scan(/[\p{Lu}\p{Ll}\d][\p{Lu}\p{Ll}\d\.'@]*/u)
 
         if terms.present?
-          prefix = arel_table.table_alias || arel_table.name
-          document = column_names.map { |n| n = "#{prefix}.#{n}" unless n['.']; "coalesce(#{n}, '')" }.join(" || ' ' || ")
-
           case options[:wildcard]
             when true then
               terms.map! { |s| "#{s}:*" }
@@ -70,23 +66,30 @@ module PgSearchScope
               terms[-1] = "#{terms[-1]}:*"
           end
 
-          tsvector = "to_tsvector('#{options[:language]}', #{document})"
-          tsquery = "to_tsquery('#{options[:language]}', '#{terms.join(" #{OPERATORS[options[:operator]]} ")}')"
+          t = arel_table
+          n = Arel::Nodes
+
+          document = n::NamedFunction.new('concat_ws', [' ', *column_names.map {|n| t[n] }])
+          query =    n::NamedFunction.new('concat_ws', [OPERATORS[options[:operator]], *terms])
+
+          tsvector = n::NamedFunction.new('to_tsvector', [options[:language], document])
+          tsquery  = n::NamedFunction.new('to_tsquery',  [options[:language], query])
+
           rank_tsvector = tsvector
           if options[:rank_columns].present?
-            rank_document = options[:rank_columns].map { |n| n = "#{prefix}.#{n}" unless n['.']; "coalesce(#{n}, '')" }.join(" || ' ' || ")
-            rank_tsvector = "to_tsvector('#{options[:language]}', #{rank_document})"
+            rank_document = n::NamedFunction.new('concat_ws', [' ', *options[:rank_columns].map {|n| t[n] }])
+            rank_tsvector = n::NamedFunction.new('to_tsvector', [options[:language], rank_document])
           end
 
-          rank = "#{scope_options[:rank_function]}(#{rank_tsvector}, #{tsquery}, #{options[:normalization]})"
+          rank = n::NamedFunction.new(scope_options[:rank_function], [rank_tsvector, tsquery, options[:normalization]])
 
           search_scope = scoped
 
           if options[:select_rank]
-            search_scope = search_scope.select("#{rank} #{scope_name}_rank")
+            search_scope = search_scope.select(n::As.new(rank, "#{scope_name}_rank"))
           end
 
-          search_scope.where("#{tsvector} @@ #{tsquery}").order("#{rank} DESC")
+          search_scope.where(n::TextMatch.new(tsvector, tsquery)).order(n::Descending.new(rank))
         else
           if options[:select_rank]
             scoped.select("0 #{scope_name}_rank")
