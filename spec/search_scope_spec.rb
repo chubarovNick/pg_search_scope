@@ -17,12 +17,12 @@ describe 'search scope' do
 
     it 'should produce correct where sql' do
       Fruit.search_by_name('apples').where_values.first.to_sql.
-          should eq('to_tsvector(\'english\', concat_ws(\' \', "fruits"."name")) @@ to_tsquery(\'english\', concat_ws(\'&\', \'apples:*\'))')
+          should eq('to_tsvector(\'english\', "fruits"."name") @@ to_tsquery(\'english\', concat_ws(\'&\', \'apples:*\'))')
     end
 
     it 'should produce correct order sql' do
       Fruit.search_by_name('apples').order_values.first.to_sql.
-          should eq('ts_rank(to_tsvector(\'english\', concat_ws(\' \', "fruits"."name")), to_tsquery(\'english\', concat_ws(\'&\', \'apples:*\')), 0) DESC')
+          should eq('ts_rank(to_tsvector(\'english\', "fruits"."name"), to_tsquery(\'english\', concat_ws(\'&\', \'apples:*\')), 0) DESC')
     end
 
     it 'should find fruits by plural form of name' do

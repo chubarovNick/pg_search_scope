@@ -69,16 +69,17 @@ module PgSearchScope
           t = arel_table
           n = Arel::Nodes
 
-          document = n::NamedFunction.new('concat_ws', [' ', *column_names.map {|n| t[n] }])
-          query =    n::NamedFunction.new('concat_ws', [OPERATORS[options[:operator]], *terms])
+          columns = column_names.map {|n| t[n] }
 
-          tsvector = n::NamedFunction.new('to_tsvector', [options[:language], document])
+          query = n::NamedFunction.new('concat_ws', [OPERATORS[options[:operator]], *terms])
+
+          tsvector = n::TsVector.new(columns, options)
           tsquery  = n::NamedFunction.new('to_tsquery',  [options[:language], query])
 
           rank_tsvector = tsvector
           if options[:rank_columns].present?
-            rank_document = n::NamedFunction.new('concat_ws', [' ', *options[:rank_columns].map {|n| t[n] }])
-            rank_tsvector = n::NamedFunction.new('to_tsvector', [options[:language], rank_document])
+            rank_columns = options[:rank_columns].map {|n| t[n] }
+            rank_tsvector = n::TsVector.new(rank_columns, options)
           end
 
           rank = n::NamedFunction.new(scope_options[:rank_function], [rank_tsvector, tsquery, options[:normalization]])
