@@ -71,10 +71,8 @@ module PgSearchScope
 
           columns = column_names.map {|n| t[n] }
 
-          query = n::NamedFunction.new('concat_ws', [OPERATORS[options[:operator]], *terms])
-
           tsvector = n::TsVector.new(columns, options)
-          tsquery  = n::NamedFunction.new('to_tsquery',  [options[:language], query])
+          tsquery  = n::TsQuery.new(terms, options)
 
           rank_tsvector = tsvector
           if options[:rank_columns].present?
