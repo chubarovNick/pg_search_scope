@@ -10,13 +10,13 @@ ActiveRecord::Migration.create_table :users, temporary: true do |t|
   t.string :last_name
   t.string :address
   t.string :email
-  t.timestamps
+  t.timestamps null: false
 end
 
 ActiveRecord::Migration.create_table :fruits, temporary: true do |t|
   t.string :name
   t.string :description
-  t.timestamps
+  t.timestamps null: false
 end
 
 class User < ActiveRecord::Base

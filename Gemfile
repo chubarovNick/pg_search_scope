@@ -13,7 +13,7 @@ gem 'faker'
 
 gem 'pg'
 
-rails_version = ENV['RAILS'] || '3.2.0'
+rails_version = ENV['RAILS'] || '4.2.0.beta4'
 
 gem 'activesupport', "~> #{rails_version}"
 gem 'activerecord',  "~> #{rails_version}"
